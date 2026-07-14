@@ -1,0 +1,13 @@
+# Applies to the gateway build (context = assignment root).
+# Keep secrets, local state, and unrelated assets out of the image + context.
+.git
+**/node_modules
+**/.venv
+**/.env
+**/*.db
+**/*.log
+**/__pycache__
+extension
+demo-pages
+eval
+benchmark

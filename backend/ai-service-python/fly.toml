@@ -1,0 +1,22 @@
+# Fly.io config — Python AI service
+# App name is set at create time; update `app` if you use a different name.
+app = "fde-lt-ai-dm"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  MODEL = "claude-sonnet-4-6"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # keep one machine warm so the in-memory cache tier stays hot
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
