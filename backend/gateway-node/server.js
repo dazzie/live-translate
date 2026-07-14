@@ -108,6 +108,37 @@ app.post("/translate/batch", async (req, res) => {
   }
 });
 
+// --- streaming translate: proxy the AI service's SSE stream to the browser ---
+app.post("/translate/stream", async (req, res) => {
+  const { text, target } = req.body || {};
+  if (typeof text !== "string") return res.status(400).json({ error: "`text` (string) is required" });
+  try {
+    const upstream = await fetch(AI_SERVICE_URL + "/translate/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-request-id": req.requestId },
+      body: JSON.stringify({ text, target: target || "es-MX" }),
+    });
+    if (!upstream.ok || !upstream.body) throw new Error("AI service " + upstream.status);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(decoder.decode(value, { stream: true }));
+    }
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(502).json({ error: "AI service error: " + err.message });
+    else res.end();
+  }
+});
+
 app.get("/health", async (req, res) => {
   const uptimeSec = Math.round((Date.now() - startedAt) / 1000);
   let ai = "unreachable";

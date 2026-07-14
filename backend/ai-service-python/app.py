@@ -14,15 +14,18 @@ TODOs so the widget lights up. Run:
     cp .env.example .env          # then add your API key
     uvicorn app:app --reload --port 8000
 """
+import json
 import os
+import re
 import time
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from lib.cache import TwoTierCache
-from lib.llm import translate_text
+from lib.llm import translate_text, translate_stream as llm_stream
 from lib.logger import get_logger
 
 load_dotenv()
@@ -95,6 +98,56 @@ async def translate_batch(body: BatchIn, x_request_id: str | None = Header(defau
     log.info("translate_batch", extra={"requestId": x_request_id, "count": len(results), "hits": hits, "latencyMs": latency})
     # widget expects {results: [{translated, cached}], latencyMs}
     return {"results": [{"translated": r["translated"], "cached": r["cached"]} for r in results], "latencyMs": latency}
+
+
+def _sse(obj: dict) -> str:
+    return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+
+@app.post("/translate/stream")
+async def translate_stream(body: TranslateIn, x_request_id: str | None = Header(default=None)):
+    """Stream a translation token-by-token as Server-Sent Events.
+
+    Emits `{"type":"delta","text":...}` events as tokens arrive, then a final
+    `{"type":"done","cached":bool,"latencyMs":int,"model":str}`. A cache hit
+    replays the stored translation in chunks (near-instant); a miss streams
+    live from the LLM and caches the assembled result.
+    """
+    text = (body.text or "").strip()
+    target = body.target
+
+    async def gen():
+        t0 = time.perf_counter()
+
+        if not text:
+            yield _sse({"type": "done", "cached": False, "latencyMs": 0, "model": MODEL})
+            return
+
+        cached_value = await cache.get(text, target)
+        if cached_value is not None:
+            for tok in re.findall(r"\S+\s*", cached_value):
+                yield _sse({"type": "delta", "text": tok})
+            latency = int((time.perf_counter() - t0) * 1000)
+            yield _sse({"type": "done", "cached": True, "latencyMs": latency, "model": MODEL})
+            log.info("translate_stream", extra={"requestId": x_request_id, "cached": True, "latencyMs": latency, "chars": len(text)})
+            return
+
+        parts = []
+        async for delta in llm_stream(text, target, model=MODEL):
+            parts.append(delta)
+            yield _sse({"type": "delta", "text": delta})
+        full = "".join(parts).strip().strip('"').strip()
+        if full:
+            await cache.set(text, target, full, model=MODEL)
+        latency = int((time.perf_counter() - t0) * 1000)
+        yield _sse({"type": "done", "cached": False, "latencyMs": latency, "model": MODEL})
+        log.info("translate_stream", extra={"requestId": x_request_id, "cached": False, "latencyMs": latency, "chars": len(text)})
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/health")

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live Translate — Streaming Demo (EN → es-MX)</title>
+    <style>
+      :root { --bg:#0b1220; --card:#131c2f; --edge:#243149; --fg:#e6edf6; --muted:#8a9bb5; --accent:#5b9dff; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: radial-gradient(1200px 600px at 20% -10%, #1a2b4a 0, transparent 60%), var(--bg);
+        color: var(--fg); font: 16px/1.6 -apple-system, Segoe UI, Roboto, sans-serif;
+        display: flex; align-items: center; justify-content: center; padding: 32px;
+      }
+      .wrap { width: 100%; max-width: 720px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      p.sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+      .card { background: var(--card); border: 1px solid var(--edge); border-radius: 14px; padding: 20px; }
+      label { display:block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+      textarea, select, input {
+        width: 100%; background: #0e1626; color: var(--fg); border: 1px solid var(--edge);
+        border-radius: 10px; padding: 12px; font: inherit; resize: vertical;
+      }
+      .row { display:flex; gap: 12px; margin-top: 14px; align-items: end; }
+      .row > div { flex: 1; }
+      button {
+        background: var(--accent); color: #04101f; border: 0; border-radius: 10px;
+        padding: 12px 18px; font-weight: 700; cursor: pointer; white-space: nowrap;
+      }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .out {
+        margin-top: 18px; min-height: 96px; background: #0e1626; border: 1px solid var(--edge);
+        border-radius: 10px; padding: 14px; font-size: 18px; white-space: pre-wrap;
+      }
+      .cursor::after { content: "▋"; color: var(--accent); animation: blink 1s steps(2) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+      .status { margin-top: 12px; font-size: 13px; color: var(--muted); }
+      .badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+      .hit { background: #10331f; color: #4ade80; }
+      .miss { background: #332910; color: #fbbf24; }
+      code { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Live Translate — Streaming</h1>
+      <p class="sub">Type English, watch it stream into Mexican Spanish token-by-token via <code>POST /translate/stream</code>. Translate the same text twice to see a cache hit stream instantly.</p>
+      <div class="card">
+        <label for="gw">Gateway URL</label>
+        <input id="gw" value="http://localhost:8787" />
+        <div class="row">
+          <div>
+            <label for="text">English text</label>
+            <textarea id="text" rows="3">If you are not completely satisfied, we offer a full refund within 30 days.</textarea>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="target">Target</label>
+            <select id="target">
+              <option value="es-MX" selected>es-MX (Mexican Spanish)</option>
+              <option value="es-ES">es-ES</option>
+              <option value="pt-BR">pt-BR</option>
+            </select>
+          </div>
+          <div style="flex:0">
+            <button id="go">Translate ▸</button>
+          </div>
+        </div>
+        <div id="out" class="out"></div>
+        <div id="status" class="status">Ready.</div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const out = $("out"), statusEl = $("status"), go = $("go");
+
+      async function translateStream() {
+        const gw = $("gw").value.trim().replace(/\/$/, "");
+        const text = $("text").value;
+        const target = $("target").value;
+        out.textContent = "";
+        out.classList.add("cursor");
+        statusEl.textContent = "Connecting…";
+        go.disabled = true;
+        const t0 = performance.now();
+
+        try {
+          const resp = await fetch(gw + "/translate/stream", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ text, target }),
+          });
+          if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+
+          const reader = resp.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          let firstTokenMs = null;
+
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            let idx;
+            while ((idx = buf.indexOf("\n\n")) >= 0) {
+              const raw = buf.slice(0, idx);
+              buf = buf.slice(idx + 2);
+              const line = raw.replace(/^data:\s?/, "");
+              if (!line) continue;
+              const evt = JSON.parse(line);
+              if (evt.type === "delta") {
+                if (firstTokenMs === null) {
+                  firstTokenMs = Math.round(performance.now() - t0);
+                  statusEl.textContent = `Streaming… first token in ${firstTokenMs} ms`;
+                }
+                out.textContent += evt.text;
+              } else if (evt.type === "done") {
+                const badge = evt.cached
+                  ? '<span class="badge hit">CACHE HIT</span>'
+                  : '<span class="badge miss">FRESH (LLM)</span>';
+                statusEl.innerHTML =
+                  `${badge} · server latency <code>${evt.latencyMs} ms</code>` +
+                  (firstTokenMs !== null ? ` · first token <code>${firstTokenMs} ms</code>` : "") +
+                  ` · model <code>${evt.model}</code>`;
+              }
+            }
+          }
+        } catch (err) {
+          statusEl.textContent = "Error: " + err.message + " — is the gateway running?";
+        } finally {
+          out.classList.remove("cursor");
+          go.disabled = false;
+        }
+      }
+
+      go.addEventListener("click", translateStream);
+    </script>
+  </body>
+</html>
