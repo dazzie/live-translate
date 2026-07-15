@@ -44,20 +44,47 @@ Sierra Coffee Roasters demo page (`demo-pages/index.html`) via the console loade
 pointed at the deployed gateway (`https://fde-lt-gw-dm.fly.dev`). The 🌐 widget
 rendered, and **Translate page** flipped the page to Mexican Spanish successfully.
 
-**Real-site test — PASSED.** The Chrome extension (`extension/`, loaded unpacked)
-was pointed at the deployed gateway (`https://fde-lt-gw-dm.fly.dev`) and run on
-`https://www.homedepot.com/`. **Check backend** returned `status: ok` with
-`model: openai/gpt-4o-mini`, and **Translate this page** flipped the live site's
-text into Mexican Spanish end-to-end.
+**Real-site test — PASSED (two sites).** The Chrome extension (`extension/`, loaded
+unpacked) was pointed at the deployed gateway (`https://fde-lt-gw-dm.fly.dev`) and run
+on two real sites the student does not control:
 
-- **Site tested:** `demo-pages/index.html` (permissive) ✅ · real site (`homedepot.com`) ✅
-- **Translated whole page?** Yes — product/nav/marketing copy flipped to es-MX on both
-- **Coverage gaps:** None blocking observed on Home Depot
-- **Cache on re-translate:** Backend-proven (2nd identical call `cached:true`, ~0 ms)
-- **Resilience:** Extension injected and translated on a real, non-controlled site without being blocked
-- **Screenshots:** _To be attached to submission (before/after on Home Depot)._
+1. **`https://www.homedepot.com/`** — a US retail site (product/nav/marketing copy).
+2. **`https://www.rte.ie/news/`** — an Irish news site (live news headlines), which
+   stress-tests numbers, currency, and dense proper nouns (place names, org names,
+   and Irish-language terms such as *Taoiseach*).
 
-### Sample translations (captured from the deployed gateway)
+In both cases **Check backend** returned `status: ok` with `model: openai/gpt-4o-mini`,
+and **Translate this page** flipped the live site's text into Mexican Spanish
+end-to-end. The RTÉ samples below were captured from the deployed gateway using the
+same `POST /translate/batch` path the "Translate page" button uses.
+
+- **Sites tested:** `demo-pages/index.html` (permissive) ✅ · `homedepot.com` ✅ · `rte.ie/news` ✅
+- **Translated whole page?** Yes — product/nav/marketing copy (Home Depot) and news headlines (RTÉ) flipped to es-MX
+- **Coverage gaps:** None blocking observed on either site
+- **Cache on re-translate:** Proven on the live RTÉ batch — a repeat call returned `cached: [true, true, true]` with batch `latencyMs: 0`
+- **Resilience:** Extension injected and translated on real, non-controlled sites (US retail + Irish news) without being blocked
+- **Screenshots:** _To be attached to submission (before/after on Home Depot and/or RTÉ)._
+
+### Sample translations — RTÉ News (`rte.ie/news`, captured from the deployed gateway)
+
+| Original (EN) | Translation (es-MX) | Numbers / names kept? | OK? |
+|---|---|---|---|
+| Tusla experienced a 10% increase in child safety and welfare referrals last year. | Tusla experimentó un aumento del 10% en las referencias de seguridad y bienestar infantil el año pasado. | `10%`, `Tusla` ✅ | ✅ |
+| T.Rex skeleton Gus sells for $50.1 million | El esqueleto de T.Rex llamado Gus se vende por $50.1 millones. | `$50.1`, `T.Rex`, `Gus` ✅ | ✅ |
+| Emergency services attend large fire in Killarney | Los servicios de emergencia atienden un gran incendio en Killarney. | `Killarney` ✅ | ✅ |
+| At least 27 people killed in fire at pub in Thai capital Bangkok | Al menos 27 personas murieron en un incendio en un bar en la capital tailandesa, Bangkok. | `27`, `Bangkok` ✅ | ✅ |
+| Taoiseach welcomes Intel's multi-billion euro investment in Leixlip | El Taoiseach da la bienvenida a la inversión de varios miles de millones de euros de Intel en Leixlip. | `Taoiseach`, `Intel`, `Leixlip` ✅ | ✅ |
+| Áine Lawlor bids farewell to RTÉ after more than 40 years | Áine Lawlor se despide de RTÉ después de más de 40 años. | `Áine Lawlor`, `RTÉ`, `40` ✅ | ✅ |
+| Will you support England in the World Cup semi-final? | ¿Vas a apoyar a Inglaterra en la semifinal de la Copa del Mundo? | n/a | ✅ |
+
+RTÉ register is natural Mexican Spanish (informal *tú*: "¿Vas a apoyar…?"), translation-only
+with no preamble. Proper nouns and org/place names are preserved verbatim (`Tusla`, `Gus`,
+`Killarney`, `Bangkok`, `Intel`, `Leixlip`, `RTÉ`), the Irish-language title *Taoiseach* is
+sensibly left untranslated, percentages/counts/years are kept (`10%`, `27`, `40`), and
+currency is preserved while the surrounding word is localized (`$50.1 million` → `$50.1 millones`).
+Only genuinely translatable proper nouns are localized (`England` → `Inglaterra`, `World Cup` → `Copa del Mundo`).
+
+### Sample translations — retail / demo content (captured from the deployed gateway)
 
 | Original (EN) | Translation (es-MX) | Numbers/prices/codes kept? | OK? |
 |---|---|---|---|
@@ -78,14 +105,14 @@ and prices/model codes preserved verbatim.
 
 | Dimension | Pass / Partial / Fail | Evidence |
 |---|---|---|
-| Translation accuracy | ✅ Pass | 8/8 sample pairs are correct, fluent translations |
+| Translation accuracy | ✅ Pass | 15/15 sample pairs correct and fluent (8 retail/demo + 7 live RTÉ news headlines) |
 | Mexican-Spanish register (es-MX) | ✅ Pass | Informal *tú*, MX-natural phrasing; not Castilian |
-| Numbers / prices / codes preserved | ✅ Pass | `$14.99`, `$50`, `MB-120`, `30 days` all kept verbatim |
-| Page coverage | ✅ Pass | Demo page + real site (homedepot.com) fully flipped to es-MX |
-| Cache effectiveness | ✅ Pass | 75% hit rate; hit 12 ms vs miss 1762 ms p95 (~148×); two-tier memory+SQLite |
+| Numbers / prices / codes preserved | ✅ Pass | `$14.99`, `$50`, `MB-120`, `30 days` + live RTÉ `10%`, `$50.1`, `27`, `40` and proper nouns (`Tusla`, `Killarney`, `Intel`, `Leixlip`, `RTÉ`, *Taoiseach*) kept verbatim |
+| Page coverage | ✅ Pass | Demo page + two real sites (homedepot.com, rte.ie/news) fully flipped to es-MX |
+| Cache effectiveness | ✅ Pass | 75% hit rate; hit 12 ms vs miss 1762 ms p95 (~148×); two-tier memory+SQLite; live RTÉ re-translate returned `cached:true`, `latencyMs:0` |
 | Latency vs SLA | ✅ Pass | All 5 SLAs pass with margin (`bench.py` exits 0) |
 | Error handling (no silent English) | ✅ Pass | LLM errors propagate → gateway `502`; no try/except returns input; `400` on bad input |
-| Resilience on a real site | ✅ Pass | Extension translated `homedepot.com` end-to-end via the deployed gateway |
+| Resilience on a real site | ✅ Pass | Extension translated `homedepot.com` and `rte.ie/news` end-to-end via the deployed gateway |
 | UX polish | ✅ Pass | Widget button + Translate/Restore flow work on the demo page and via the extension |
 
 **Observability:** structured JSON logs in both services; a single request ID
