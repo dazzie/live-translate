@@ -2,7 +2,7 @@
 
 - **Student:** Daragh Moran
 - **Date:** 2026-07-13
-- **Video demo:** _(pending — paste your 60–90s demo link before submitting)_
+- **Video demo:** https://youtu.be/nxAdKuOFKWg
 - **LLM provider / model:** provider-swappable via `LLM_PROVIDER`. **Deployed on OpenRouter / `openai/gpt-4o-mini`**; also runs on Anthropic Claude / `claude-sonnet-4-6` (the benchmark numbers below were captured on the Anthropic run).
 - **Backend target:** `http://localhost:8787` (local) · deployed gateway `https://fde-lt-gw-dm.fly.dev`
 
@@ -128,7 +128,7 @@ passed (`deploy_health_ok: true`, `https://fde-lt-gw-dm.fly.dev/health`).
 
 ## 4. Top fixes before shipping
 
-1. **Attach artifacts:** the live-website test passed on `homedepot.com` — still need before/after screenshots and the 60–90s demo video pasted in above before final submission.
+1. **Attach artifacts:** demo video is linked above (https://youtu.be/nxAdKuOFKWg); optionally add before/after screenshots of the translated pages for the written record.
 2. **Harden the deploy:** mount a Fly volume for `translations.db` so the SQLite cache survives machine restarts in production, and make the AI service `flycast`-private so only the gateway can reach it.
 3. **Confirm cost inputs:** the `$/Mtok` prices in `benchmark/sla.json` are placeholders — set them to your provider's current published rates before quoting the monthly cost/savings figures. (Note: OpenRouter `gpt-4o-mini` is materially cheaper than the Anthropic rates modeled above.)
 
