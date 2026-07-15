@@ -1,4 +1,4 @@
-# Assignment 1 — Live Translate
+# Live Translate
 
 > Ship a browser widget that translates any English web page into **Mexican
 > Spanish** in real time and on demand — then build the backend that powers it.
@@ -7,14 +7,13 @@ You are given a **working frontend** (a widget, a console loader, and a Chrome
 extension). Your job is to build the **backend** it talks to. When your backend
 works, the widget lights up on any page on the internet. That's the whole game.
 
-This is the first assignment of the **Forward Deployed Engineer (FDE)** track.
-It's deliberately shaped like real FDE work: you don't get a clean sandbox, you
+**Forward Deployed Engineer (FDE)**.
 get *someone else's page* and a widget you have to make useful by standing up a
 real service behind it — with an LLM, a cache, logs, and a deploy.
 
 ---
 
-## Why this assignment
+## Why
 
 A Forward Deployed Engineer takes a capability and makes it work **in the
 customer's environment**, end to end. This assignment compresses that into one
