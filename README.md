@@ -417,12 +417,31 @@ Every FDE project is submitted as a **Product Evaluation + a video demo**.
 
 ## How I ran & deployed it
 
-**LLM provider:** Anthropic Claude (`claude-sonnet-4-6`). The API key is read from
-`.env` locally (`ANTHROPIC_API_KEY`) and from a Fly.io secret in production — it is
-never hard-coded or committed. The provider is swappable via `lib/llm.py`.
+**Status:** ✅ Complete and deployed. Both services run locally with one command each
+and are live on Fly.io. All automated criteria (70/70) and every SLA pass, and the
+**live-website test passed on `homedepot.com`** via the Chrome extension pointed at the
+public gateway. Two enhancements beyond the brief are included: a **provider-swappable
+LLM** and **token-by-token streaming** (see below). Remaining items are submission
+artifacts only — before/after screenshots and the 60–90s demo video.
+
+**LLM provider:** provider-swappable via the `LLM_PROVIDER` env var, read at call time
+in `lib/llm.py` (so `.env` is always honored). **Deployed on OpenRouter**
+(`openai/gpt-4o-mini`); also runs on **Anthropic Claude** (`claude-sonnet-4-6`). API
+keys are read from `.env` locally (`OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY`) and from
+Fly.io secrets in production — never hard-coded or committed.
 
 > Dependency note: `anthropic==0.39.0` is incompatible with `httpx>=0.28` (which
-> dropped the `proxies` argument), so `requirements.txt` pins `httpx==0.27.2`.
+> dropped the `proxies` argument), so `requirements.txt` pins `httpx==0.27.2`. The
+> OpenRouter path uses the `openai` SDK against `https://openrouter.ai/api/v1`.
+
+### Enhancements beyond the brief
+
+- **Provider-swappable LLM** — set `LLM_PROVIDER=openrouter` (default `anthropic`) and
+  `MODEL` to switch backends with no code change.
+- **Token-by-token streaming** — additive `POST /translate/stream` (Server-Sent Events)
+  on the AI service, proxied through the gateway, with a standalone `streaming-demo/`
+  page. Cache hits replay instantly; misses stream live from the LLM and are cached on
+  completion. The provided `widget/` and `extension/` are left **unmodified**.
 
 ### Run locally (one command per service)
 
@@ -454,7 +473,8 @@ Both services run as separate Fly apps (Docker builds; `fly.toml` in each servic
 # AI service (context = its own dir)
 cd backend/ai-service-python
 fly apps create fde-lt-ai-dm
-fly secrets set ANTHROPIC_API_KEY=... --app fde-lt-ai-dm
+# provider is set in fly.toml [env] (LLM_PROVIDER=openrouter, MODEL=openai/gpt-4o-mini)
+fly secrets set OPENROUTER_API_KEY=... --app fde-lt-ai-dm   # or ANTHROPIC_API_KEY for the Anthropic path
 fly deploy --app fde-lt-ai-dm
 
 # Gateway — build context MUST be the assignment root so widget/ is included
